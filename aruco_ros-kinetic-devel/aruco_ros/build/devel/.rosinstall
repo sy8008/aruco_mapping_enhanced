@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/songyang/aruco_kinectic_devel_ws/src/aruco_ros-kinetic-devel/aruco_ros/build/devel/setup.sh

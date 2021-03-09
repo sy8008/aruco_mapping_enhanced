@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/songyang/aruco_mapping_ros_official_ws/src/aruco_mapping/build/devel/setup.sh

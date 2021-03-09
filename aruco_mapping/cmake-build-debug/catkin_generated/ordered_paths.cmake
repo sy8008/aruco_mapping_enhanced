@@ -1,0 +1,1 @@
+set(ORDERED_PATHS "/home/songyang/aruco_mapping_ros_official_ws/devel/lib;/opt/ros/melodic/lib")

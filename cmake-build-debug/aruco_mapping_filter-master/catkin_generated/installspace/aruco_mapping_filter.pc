@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: aruco_mapping_filter
+Description: Description of aruco_mapping_filter
+Version: 1.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

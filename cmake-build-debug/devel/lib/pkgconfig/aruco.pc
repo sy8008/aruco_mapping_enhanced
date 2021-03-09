@@ -1,0 +1,8 @@
+prefix=/home/songyang/aruco_mapping_ros_official_ws/src/cmake-build-debug/devel
+
+Name: aruco
+Description: Description of aruco
+Version: 0.2.4
+Cflags: -I/home/songyang/aruco_mapping_ros_official_ws/src/aruco_ros-kinetic-devel/aruco/include
+Libs: -L${prefix}/lib -laruco
+Requires: 
