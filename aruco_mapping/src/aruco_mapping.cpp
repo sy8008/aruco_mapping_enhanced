@@ -78,8 +78,7 @@ ArucoMapping::ArucoMapping(ros::NodeHandle *nh) :
     ROS_INFO_STREAM("Number of markers: " << num_of_markers_);
     ROS_INFO_STREAM("Marker Size: " << marker_size_);
     ROS_INFO_STREAM("Type of space: " << space_type_);
-    ROS_INFO_STREAM("ROI allowed: " << roi_allowed_);
-    ROS_INFO_STREAM("ROI x-coor: " << roi_x_);
+    ROS_INFO_STREAM("ROI allowed: " << roi_allowed_);ROS_INFO_STREAM("ROI x-coor: " << roi_x_);
     ROS_INFO_STREAM("ROI y-coor: " << roi_x_);
     ROS_INFO_STREAM("ROI width: "  << roi_w_);
     ROS_INFO_STREAM("ROI height: " << roi_h_);      
@@ -96,6 +95,10 @@ ArucoMapping::ArucoMapping(ros::NodeHandle *nh) :
   //Initialize OpenCV window
   cv::namedWindow("Mono8", CV_WINDOW_AUTOSIZE);
   cv::namedWindow("test2", CV_WINDOW_AUTOSIZE);
+  cv::namedWindow("hsv_mask",CV_WINDOW_AUTOSIZE);
+  cv::namedWindow("contour_mask",CV_WINDOW_AUTOSIZE);
+  cv::namedWindow("eroded_hsv_mask",CV_WINDOW_AUTOSIZE);
+  cv::namedWindow("cv_find_square",CV_WINDOW_AUTOSIZE);
   //Resize marker container
   markers_.resize(num_of_markers_);
   
@@ -183,18 +186,40 @@ ArucoMapping::imageCallback(const sensor_msgs::ImageConstPtr &original_image)
 
   //Marker detection
 
-  cv::Scalar low_hsv(32,0,0),high_hsv(118,255,255);
+  cv::Scalar low_hsv(30,0,0),high_hsv(118,255,255);
+  cv::Mat I_gray;
+  cvtColor(I.clone(),I_gray,CV_BGR2GRAY);
   cv::Mat frame_hsv,hsv_mask;
   cv::Mat frame_copy=I.clone();
   cv::Mat frame_draw=I.clone();
+  Mat contour_mask=I.clone();
+  Mat frame_gray;
+  Mat cv_find_square_draw_frame=I.clone();
 //  cout<<"I depth: "<<I.channels()<<endl;
+
+  GaussianBlur(I,I,Size(3,3),0,0);
   cv::cvtColor(I, frame_hsv, cv::COLOR_BGR2HSV);
+  cv::cvtColor(I, frame_gray, cv::COLOR_RGB2GRAY);
   cv::inRange(frame_hsv,low_hsv,high_hsv,hsv_mask);
   SquareFinder squarefinder;
-  vector<Quadrilateral> squares=squarefinder.findSquares(hsv_mask);
+
+  Mat inv_hsv_mask=~hsv_mask;
+  vector<Quadrilateral> squares=squarefinder.findSquares(inv_hsv_mask,0.5,2000,40000,0.2);
+
+//  vector<vector<Point> > squares_cv;
+//  squarefinder.findSquaresCV(inv_hsv_mask,squares_cv,0,50,5);
+//
+//
 //  cout<<"square size: "<<squares.size()<<endl;
   squarefinder.drawQuads(frame_draw,squares);
   cv::Mat poly_mask=cv::Mat::zeros(cv::Size(hsv_mask.cols,hsv_mask.rows),CV_8UC1);
+  Mat edges;
+  Mat struct_element=getStructuringElement(MORPH_RECT,Size(7,7));
+  ;
+  cv::Canny(inv_hsv_mask,edges,100,200);
+  erode(inv_hsv_mask,inv_hsv_mask,struct_element);
+  Mat eroced_hsv_mask=~inv_hsv_mask;
+
 
 
   vector<Point2i> temp_points(4);
@@ -206,20 +231,60 @@ ArucoMapping::imageCallback(const sensor_msgs::ImageConstPtr &original_image)
       cv::fillConvexPoly(poly_mask,temp_points,cv::Scalar(255,255,255));
   }
 
+  vector<vector<Point>> contours;
+  vector<Vec4i> hierarchy;
+
+  cv::findContours(edges,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE);
+    for(int i=0;i<contours.size();i++)
+    {
+        //contours[i]代表的是第i个轮廓，contours[i].size()代表的是第i个轮廓上所有的像素点数
+        for(int j=0;j<contours[i].size();j++)
+        {
+            //绘制出contours向量内所有的像素点
+            Point P=Point(contours[i][j].x,contours[i][j].y);
+            for(int k=0;k<3;k++);
+//                contour_mask.at<Vec3b>(P)[k]=255;
+        }
+
+        //绘制轮廓
+        if(contourArea(contours[i])>1000)
+            drawContours(contour_mask,contours,i,Scalar(255,255,255),1,8,hierarchy);
+    }
+
+
+//  Using mask generated from findSquare function
+//  for(int i=0;i<I.rows;i++)
+//      for(int j=0;j<I.cols;j++){
+//          if(poly_mask.at<uint8_t>(i,j)==0){
+//              for(int k=0;k<3;k++){
+//                  frame_copy.at<cv::Vec3b>(i,j)[k]=255;
+//              }
+//          }
+//      }
+
+// Using mask generated from hsv binarization
   for(int i=0;i<I.rows;i++)
-      for(int j=0;j<I.cols;j++){
-          if(poly_mask.at<uint8_t>(i,j)==0){
-              for(int k=0;k<3;k++){
-                  frame_copy.at<cv::Vec3b>(i,j)[k]=255;
-              }
-          }
-      }
+    for(int j=0;j<I.cols;j++){
+        if(hsv_mask.at<uint8_t>(i,j)==255){
+            for(int k=0;k<3;k++){
+                frame_copy.at<cv::Vec3b>(i,j)[k]=255;
+            }
+        }
+    }
+
   cv::cvtColor(frame_copy, frame_copy, cv::COLOR_BGR2GRAY);
 //  processImage(I,I);
   processImage(frame_copy,frame_copy);
+//  polylines(cv_find_square_draw_frame, squares_cv, true, Scalar(0, 255, 0), 3, LINE_AA);
+//  cout<<"##########squares_cv: "<<squares_cv.size()<<endl;
   // Show image
   cv::imshow("Mono8", frame_copy);
   cv::imshow("test2", frame_draw);
+  cv::imshow("hsv_mask",hsv_mask);
+  cv::imshow("contour_mask",contour_mask);
+  cv::imshow("eroded_hsv_mask",eroced_hsv_mask);
+//  cv::imshow("cv_find_square",cv_find_square_draw_frame);
+//  cv::imshow("Canny Edges",edges);
   cv::waitKey(10);  
 }
 
